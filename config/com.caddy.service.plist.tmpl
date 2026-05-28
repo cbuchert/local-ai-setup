@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Caddy LaunchDaemon. Rendered by scripts/20-render-config.sh and installed by
+  scripts/50-caddy.sh to /Library/LaunchDaemons/.
+
+  Why a custom LaunchDaemon (not `brew services`): brew services creates a
+  LaunchAgent, which requires a GUI login session. We want HTTPS up before
+  anyone logs in. (Brief Architecture section.)
+
+  OLLAMA_API_KEY is set here — the Caddyfile reads it as {env.OLLAMA_API_KEY}
+  at runtime. The token is therefore present in /Library/LaunchDaemons/ as a
+  root-owned 644 file; acceptable for a single-operator headless box.
+
+  XDG_DATA_HOME pins Caddy's data dir (where the internal CA + key live) to
+  a predictable path that 50-caddy.sh can read for the CA export step.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>            <string>com.caddy.service</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/caddy</string>
+    <string>run</string>
+    <string>--config</string>
+    <string>/opt/homebrew/etc/Caddyfile</string>
+    <string>--adapter</string>
+    <string>caddyfile</string>
+  </array>
+  <key>RunAtLoad</key>        <true/>
+  <key>KeepAlive</key>        <true/>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>            <string>/var/root</string>
+    <key>XDG_DATA_HOME</key>   <string>/var/lib/caddy</string>
+    <key>XDG_CONFIG_HOME</key> <string>/var/lib/caddy/config</string>
+    <key>OLLAMA_API_KEY</key>  <string>${OLLAMA_API_KEY}</string>
+  </dict>
+  <key>StandardOutPath</key>  <string>/var/log/caddy.log</string>
+  <key>StandardErrorPath</key><string>/var/log/caddy.err</string>
+</dict>
+</plist>

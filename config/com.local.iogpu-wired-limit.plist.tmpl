@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Template for the boot-time sysctl that raises the GPU wired-memory cap.
+  Rendered by scripts/20-render-config.sh; installed by 30-launchdaemons.sh.
+
+  Without this, Metal refuses to allocate beyond ~75% of unified RAM
+  (~48 GB on a 64 GB Mac). sysctl resets on reboot, so we run it from a
+  RunAtLoad LaunchDaemon. (Research doc §4 "GPU memory limit (persist it!)".)
+
+  ${IOGPU_WIRED_LIMIT_MB} comes from .env. Don't set it so high you starve
+  macOS — leave at least ~8 GB headroom.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.local.iogpu-wired-limit</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/sbin/sysctl</string>
+    <string>iogpu.wired_limit_mb=${IOGPU_WIRED_LIMIT_MB}</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+</dict>
+</plist>

@@ -1,0 +1,20 @@
+# Operator-edited secrets — never commit
+.env
+*.key
+
+# Generated build artifacts — rendered from templates by scripts/20-render-config.sh
+config/*.plist
+config/Caddyfile
+
+# Exported Caddy root CA — re-exported on every run, not source of truth
+exported-ca/
+
+# Transient sudoers files written by --unattended (cleaned up on exit, but
+# guard against committing one if a run is interrupted)
+/etc/sudoers.d/mac-studio-bootstrap-*
+
+# Runtime logs
+logs/
+
+# macOS noise
+.DS_Store
