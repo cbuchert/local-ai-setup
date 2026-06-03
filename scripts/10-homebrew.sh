@@ -34,21 +34,34 @@ fi
 log_info "Running brew bundle (idempotent)"
 brew bundle --file="${REPO_ROOT}/Brewfile"
 
-# The Homebrew *formula* 'ollama' stopped shipping the llama-server runner on
-# macOS 26 (ollama/ollama#16417): the CLI starts but can't generate. We install
-# the official .app via the 'ollama-app' cask (see Brewfile). Remove a formula
-# left by an earlier run so /opt/homebrew/bin/ollama can't shadow the app binary.
-if brew list --formula ollama >/dev/null 2>&1; then
-  log_info "Removing superseded Homebrew formula 'ollama' (replaced by ollama-app cask)"
-  brew uninstall --formula --ignore-dependencies ollama \
-    || log_warn "Could not uninstall formula 'ollama'; the .app binary still takes priority"
-fi
-
-# Verify the binaries we depend on now exist where we expect them. ollama is
-# resolved via resolve_ollama_bin (the cask installs into /Applications, not on
-# PATH); caddy and jq are formulae and must be on PATH.
-for bin in caddy jq; do
+# Verify the binaries we depend on now exist where we expect them.
+for bin in ollama caddy jq; do
   command -v "${bin}" >/dev/null || die "${bin} missing after brew bundle"
 done
-resolve_ollama_bin
-log_info "Homebrew phase complete: ollama (${OLLAMA_BIN}), caddy, jq present"
+
+# --- Install the llama-server runner (the macOS 26 workaround) --------------
+# The `ollama` formula's bottle stopped shipping the llama-server runner on
+# macOS 26 (ollama/ollama#16417): `ollama serve` starts and answers /api/tags,
+# but every generation fails with "llama-server binary not found". The official
+# .app (ollama-app cask) bundles a working runner, so copy it into the dir the
+# formula searches first. We pair the formula's serve binary (the .app's own
+# `ollama` is a GUI build that hangs headless) with the .app's runner. Idempotent
+# and self-healing: re-run after a formula upgrade re-populates the fresh lib dir.
+runner_src="/Applications/Ollama.app/Contents/Resources"
+runner_dst="/opt/homebrew/opt/ollama/libexec/lib/ollama"   # version-stable opt symlink
+[[ -x "${runner_src}/llama-server" ]] \
+  || die "llama-server not found in ${runner_src} — is the ollama-app cask installed? (brew install --cask ollama-app)"
+mkdir -p "${runner_dst}"
+cp "${runner_src}/llama-server" "${runner_dst}/" \
+  || die "Failed to copy llama-server into ${runner_dst}"
+# The runner's shared libs (libllama/libggml/libmtmd …) must sit beside it so its
+# @loader_path rpath resolves. Copy the .dylib set (skip the .so Linux variants).
+cp "${runner_src}"/*.dylib "${runner_dst}/" 2>/dev/null || true
+
+# Surface a formula(server)/cask(runner) version skew — patch-level is fine, but
+# a large gap is worth knowing about if generation ever misbehaves.
+formula_ver="$(brew list --versions ollama 2>/dev/null | awk '{print $2}')"
+cask_ver="$(brew list --cask --versions ollama-app 2>/dev/null | awk '{print $2}')"
+log_info "llama-server runner installed → ${runner_dst} (formula ollama ${formula_ver:-?}, runner from ollama-app ${cask_ver:-?})"
+
+log_info "Homebrew phase complete: ollama, caddy, jq present; runner in place"

@@ -18,12 +18,6 @@ log_step "20-render-config: render plists + Caddyfile from templates"
 
 load_dotenv
 
-# Resolve the ollama binary so the Ollama LaunchDaemon plist points at the build
-# that actually ships the llama-server runner. Exported for render_template's
-# ${OLLAMA_BIN} substitution in com.ollama.service.plist.tmpl.
-resolve_ollama_bin
-log_info "Ollama binary for LaunchDaemon: ${OLLAMA_BIN}"
-
 # Required keys. Empty string is a failure for these.
 required=(
   SERVER_HOSTNAME

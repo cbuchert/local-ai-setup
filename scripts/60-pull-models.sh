@@ -17,7 +17,6 @@ source "${SCRIPT_DIR}/lib.sh"
 log_step "60-pull-models: pull every tag in models.txt"
 
 load_dotenv
-resolve_ollama_bin
 
 MANIFEST="${REPO_ROOT}/models.txt"
 [[ -f "${MANIFEST}" ]] || die "models.txt missing at ${MANIFEST}"
@@ -40,7 +39,7 @@ curl -sf "http://${host}/api/tags" >/dev/null 2>&1 \
 refresh_installed() {
   # `ollama list` may briefly fail under load; default to empty rather than
   # letting pipefail abort the script.
-  installed="$("${OLLAMA_BIN}" list 2>/dev/null | awk 'NR>1 {print $1}' | sort -u || true)"
+  installed="$(ollama list 2>/dev/null | awk 'NR>1 {print $1}' | sort -u || true)"
 }
 refresh_installed
 
@@ -69,10 +68,10 @@ while IFS= read -r raw || [[ -n "${raw}" ]]; do
   log_info "↓ pulling ${tag}"
   # Single retry on transient pull failure (network blip mid-pull). Ollama
   # resumes by blob hash, so a re-run is cheap.
-  if ! "${OLLAMA_BIN}" pull "${tag}"; then
+  if ! ollama pull "${tag}"; then
     log_warn "First pull of ${tag} failed; retrying once"
     sleep 5
-    "${OLLAMA_BIN}" pull "${tag}" || die "ollama pull ${tag} failed twice"
+    ollama pull "${tag}" || die "ollama pull ${tag} failed twice"
   fi
   ((pulled++)) || true
   refresh_installed

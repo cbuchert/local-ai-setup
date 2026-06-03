@@ -15,6 +15,19 @@ LAN clients ──HTTPS + Bearer token──> Caddy (:443, tls internal, LaunchD
                                        Metal GPU (no GUI login needed)
 ```
 
+### A note on Ollama packaging (macOS 26)
+
+Ollama is installed via **two** Homebrew packages, for one annoying reason
+([ollama/ollama#16417](https://github.com/ollama/ollama/issues/16417)): on
+macOS 26 the `ollama` *formula's* bottle stopped shipping the `llama-server`
+runner, so `ollama serve` starts and answers `/api/tags` but every generation
+fails with `llama-server binary not found`. The official `.app`
+(`ollama-app` cask) bundles a working runner — but its own `ollama` binary is a
+GUI build that hangs in a headless session. So the bootstrap uses the **formula's
+`ollama serve`** (runs fine under a LaunchDaemon) and copies the **cask's
+`llama-server`** into the formula's runner dir (`scripts/10-homebrew.sh`). When
+the formula bottle ships the runner again, the cask + copy step can be dropped.
+
 ## Prerequisites
 
 - A Mac Studio (Apple Silicon) running macOS 14 or newer.
@@ -140,7 +153,7 @@ You can also run any single phase directly to debug:
 mac-studio-setup/
 ├── pre-bootstrap.sh          curl-piped entry: installs brew, clones, hands off
 ├── bootstrap.sh              single entry point: orchestrates the phases
-├── Brewfile                  ollama-app (cask), caddy, jq
+├── Brewfile                  ollama + ollama-app cask (runner), caddy, jq
 ├── .env.example              committed; .env is gitignored
 ├── models.txt                tag-per-line model manifest
 ├── scripts/

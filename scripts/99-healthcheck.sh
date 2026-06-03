@@ -24,7 +24,6 @@ source "${SCRIPT_DIR}/lib.sh"
 log_step "99-healthcheck: verify the full stack"
 
 load_dotenv
-resolve_ollama_bin
 
 # ---------- 1. Daemons loaded ----------
 for label in com.ollama.service com.caddy.service com.local.iogpu-wired-limit; do
@@ -98,7 +97,7 @@ fi
 # /api/ps select() below matches Ollama's canonical form.
 choose_health_model() {
   local installed raw tag norm_tag
-  installed="$("${OLLAMA_BIN}" list 2>/dev/null | awk 'NR>1 {print $1}' || true)"
+  installed="$(ollama list 2>/dev/null | awk 'NR>1 {print $1}' || true)"
   [[ -n "${installed}" ]] || return 1
   while IFS= read -r raw || [[ -n "${raw}" ]]; do
     tag="${raw%%#*}"

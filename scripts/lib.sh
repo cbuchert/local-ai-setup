@@ -155,26 +155,6 @@ load_dotenv() {
   set +a
 }
 
-# Resolve the ollama executable into OLLAMA_BIN (idempotent; exported).
-# Prefer the official .app bundle: its build ships the llama-server runner,
-# whereas the Homebrew *formula* stopped bundling it on macOS 26
-# (ollama/ollama#16417) — the formula CLI starts but cannot generate. Fall back
-# to a PATH-resolved ollama so a machine still on a working formula keeps going.
-# The plist, model pulls, and healthcheck all run through this so they never
-# accidentally use a runnerless binary.
-resolve_ollama_bin() {
-  [[ -n "${OLLAMA_BIN:-}" ]] && { export OLLAMA_BIN; return 0; }
-  local app_bin="/Applications/Ollama.app/Contents/Resources/ollama"
-  if [[ -x "${app_bin}" ]]; then
-    OLLAMA_BIN="${app_bin}"
-  elif command -v ollama >/dev/null 2>&1; then
-    OLLAMA_BIN="$(command -v ollama)"
-  else
-    die "ollama not found. Install the official build: brew install --cask ollama-app"
-  fi
-  export OLLAMA_BIN
-}
-
 # Compare a source file to a destination (possibly root-owned); install if
 # different. Returns 0 if a change was made, 1 if no change.
 #
