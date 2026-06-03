@@ -32,7 +32,7 @@ if ! xcode-select -p >/dev/null 2>&1; then
 fi
 
 log_info "Running brew bundle (idempotent)"
-brew bundle --file="${REPO_ROOT}/Brewfile" --no-lock
+brew bundle --file="${REPO_ROOT}/Brewfile"
 
 # Verify the binaries we depend on now exist where we expect them.
 for bin in ollama caddy jq; do
