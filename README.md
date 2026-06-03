@@ -62,10 +62,13 @@ fires, the file persists. To remove it manually: `sudo rm /etc/sudoers.d/mac-stu
 
 ## Configuration
 
-The operator-facing config surface is `.env` (created by copying
-`.env.example`). Templates under `config/` are rendered into `*.plist` and
-`Caddyfile` build artifacts (gitignored). **Never hand-edit the rendered
-files** — re-running `bootstrap.sh` will overwrite them.
+The operator-facing config surface is `.env`. On first run `bootstrap.sh`
+auto-creates it from `.env.example` — every value is a working default or
+generated downstream (`OLLAMA_API_KEY` is auto-generated), so **no editing is
+required for a default install**. Edit `.env` only to override a default, then
+re-run. Templates under `config/` are rendered into `*.plist` and `Caddyfile`
+build artifacts (gitignored). **Never hand-edit the rendered files** —
+re-running `bootstrap.sh` will overwrite them.
 
 | Var                        | Purpose                                            |
 | -------------------------- | -------------------------------------------------- |

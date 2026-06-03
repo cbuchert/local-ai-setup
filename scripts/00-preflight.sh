@@ -6,7 +6,7 @@
 #   - macOS version >= 14 (Sonoma); warn on unknown majors
 #   - Network reachable (so brew install / ollama pull have a chance)
 #   - NOT running as root (Homebrew refuses; sudo is per-step)
-#   - .env exists (operator copied .env.example and edited it)
+#   - .env exists, auto-created from .env.example on first run (no editing needed)
 
 set -euo pipefail
 
@@ -35,10 +35,9 @@ if ! curl -sSf --max-time 8 -o /dev/null https://github.com/; then
 fi
 log_info "Network OK (HTTPS to github.com works)"
 
-# Operator must have created .env (not just copied .env.example).
-if [[ ! -f "${REPO_ROOT}/.env" ]]; then
-  die ".env missing. Copy .env.example to .env, edit values, then re-run."
-fi
+# .env is auto-created from .env.example on first run; every value defaults or
+# is generated downstream, so no manual editing is required.
+ensure_dotenv
 log_info ".env present"
 
 log_info "Preflight passed"

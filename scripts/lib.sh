@@ -131,10 +131,24 @@ sudo_keepalive_stop() {
   fi
 }
 
-# Source .env into the environment with auto-export. Loud error if missing.
-load_dotenv() {
+# Ensure .env exists, creating it from .env.example if absent. Every value in
+# .env.example is either a working default or intentionally empty and filled in
+# downstream (OLLAMA_API_KEY is generated in 20-render-config; OLLAMA_MODELS
+# defaults to ~/.ollama/models). So a freshly-copied .env needs no hand-editing
+# and first run is fully unattended.
+ensure_dotenv() {
   local env_file="${REPO_ROOT}/.env"
-  [[ -f "${env_file}" ]] || die ".env not found. Copy .env.example to .env and edit it."
+  [[ -f "${env_file}" ]] && return 0
+  local example_file="${REPO_ROOT}/.env.example"
+  [[ -f "${example_file}" ]] || die ".env missing and .env.example not found — cannot bootstrap config."
+  cp "${example_file}" "${env_file}"
+  log_info ".env not found — created from .env.example (defaults; OLLAMA_API_KEY generated in render phase)"
+}
+
+# Source .env into the environment with auto-export, creating it first if needed.
+load_dotenv() {
+  ensure_dotenv
+  local env_file="${REPO_ROOT}/.env"
   set -a
   # shellcheck disable=SC1090
   source "${env_file}"
