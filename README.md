@@ -140,7 +140,7 @@ You can also run any single phase directly to debug:
 mac-studio-setup/
 ├── pre-bootstrap.sh          curl-piped entry: installs brew, clones, hands off
 ├── bootstrap.sh              single entry point: orchestrates the phases
-├── Brewfile                  ollama, caddy, jq
+├── Brewfile                  ollama-app (cask), caddy, jq
 ├── .env.example              committed; .env is gitignored
 ├── models.txt                tag-per-line model manifest
 ├── scripts/

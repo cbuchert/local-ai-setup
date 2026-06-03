@@ -34,8 +34,21 @@ fi
 log_info "Running brew bundle (idempotent)"
 brew bundle --file="${REPO_ROOT}/Brewfile"
 
-# Verify the binaries we depend on now exist where we expect them.
-for bin in ollama caddy jq; do
+# The Homebrew *formula* 'ollama' stopped shipping the llama-server runner on
+# macOS 26 (ollama/ollama#16417): the CLI starts but can't generate. We install
+# the official .app via the 'ollama-app' cask (see Brewfile). Remove a formula
+# left by an earlier run so /opt/homebrew/bin/ollama can't shadow the app binary.
+if brew list --formula ollama >/dev/null 2>&1; then
+  log_info "Removing superseded Homebrew formula 'ollama' (replaced by ollama-app cask)"
+  brew uninstall --formula --ignore-dependencies ollama \
+    || log_warn "Could not uninstall formula 'ollama'; the .app binary still takes priority"
+fi
+
+# Verify the binaries we depend on now exist where we expect them. ollama is
+# resolved via resolve_ollama_bin (the cask installs into /Applications, not on
+# PATH); caddy and jq are formulae and must be on PATH.
+for bin in caddy jq; do
   command -v "${bin}" >/dev/null || die "${bin} missing after brew bundle"
 done
-log_info "Homebrew phase complete: ollama, caddy, jq present"
+resolve_ollama_bin
+log_info "Homebrew phase complete: ollama (${OLLAMA_BIN}), caddy, jq present"
