@@ -16,3 +16,8 @@ brew "ollama"
 cask "ollama-app"
 brew "caddy"
 brew "jq"
+
+# Operator tooling (not required by the server): live GPU/CPU/ANE/power monitor,
+# handy over SSH on a headless box. Run with `sudo mactop` (needs root for
+# powermetrics).
+brew "mactop"
