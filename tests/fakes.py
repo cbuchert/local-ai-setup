@@ -20,6 +20,8 @@ class FakeEffects:
         read_texts=None,
         hf_cache=None,
         hf_repo_size=None,
+        dir_sizes=None,
+        paths=None,
     ):
         # run_results: {tuple(argv): RunResult or [RunResult, ...]}. A list is
         # consumed one per call (last value repeats) so a probe can change
@@ -34,6 +36,8 @@ class FakeEffects:
         # hf_repo_size: {repo: size_bytes} — pre-pull size lookup for the guard.
         self._hf_cache = list(hf_cache or [])
         self._hf_repo_size = dict(hf_repo_size or {})
+        self._dir_sizes = dict(dir_sizes or {})
+        self._paths = set(str(p) for p in (paths or set()))
         self.calls = []
 
     def run(self, argv, *, input=None):
@@ -76,3 +80,11 @@ class FakeEffects:
     def hf_repo_size(self, repo):
         self.calls.append(("hf_repo_size", repo))
         return self._hf_repo_size.get(repo, 0)
+
+    def path_exists(self, path):
+        self.calls.append(("path_exists", str(path)))
+        return str(path) in self._paths
+
+    def dir_size_bytes(self, path):
+        self.calls.append(("dir_size", str(path)))
+        return self._dir_sizes.get(str(path), 0)

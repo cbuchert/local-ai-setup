@@ -75,6 +75,24 @@ class Effects:
         except (FileNotFoundError, PermissionError, IsADirectoryError, OSError):
             return None
 
+    def path_exists(self, path) -> bool:
+        return Path(path).exists()
+
+    def dir_size_bytes(self, path) -> int:
+        """Bytes consumed by a directory tree (0 if absent). Used to report
+        the GGUF blobs the Ollama cleanup reclaims."""
+        root = Path(path)
+        if not root.exists():
+            return 0
+        total = 0
+        for p in root.rglob("*"):
+            try:
+                if p.is_file() and not p.is_symlink():
+                    total += p.stat().st_size
+            except OSError:
+                pass
+        return total
+
     # --- Hugging Face hub cache (model management, #4) --------------------
 
     def hf_download(self, repo: str, hf_home: str) -> None:
