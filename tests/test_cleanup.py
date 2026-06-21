@@ -140,6 +140,26 @@ class RunRemovalTest(unittest.TestCase):
         self.assertNotIn("OLLAMA_API_KEY", new)
         self.assertNotIn("OLLAMA_HOST", new)
 
+    def test_reaps_surviving_ollama_process(self):
+        # bootout leaves a live `ollama serve` holding the port (hardware bug)
+        fx = _all_present()
+        self._run(fx, self._env())
+        runs = [c[1] for c in fx.calls if c[0] == "run"]
+        self.assertIn(("pkill", "-f", "ollama serve"), runs)
+        self.assertIn(("sudo", "pkill", "-f", "ollama serve"), runs)
+
+    def test_backfills_missing_schema_keys_from_example(self):
+        d = Path(tempfile.mkdtemp())
+        (d / ".env.example").write_text("MLX_HOST=127.0.0.1:8080\nHF_HOME=\n")
+        env_path = d / ".env"
+        env_path.write_text("OLLAMA_API_KEY=tok\nSERVER_HOSTNAME=casper.local\n")
+        cleanup_mod.run(_all_present(), env_path=env_path, out=lambda *_: None)
+        from llmctl import env as env_mod
+        new = env_mod.load_env(env_path)
+        self.assertEqual(new["MLX_HOST"], "127.0.0.1:8080")  # backfilled, not empty
+        self.assertEqual(new["API_KEY"], "tok")
+        self.assertEqual(new["SERVER_HOSTNAME"], "casper.local")
+
     def test_keeps_existing_api_key_when_no_ollama_key(self):
         # already-migrated .env on a box that still has, say, leftover logs
         fx = _all_present()
@@ -157,7 +177,8 @@ class NoOpTest(unittest.TestCase):
         env_path.write_text("API_KEY=keep\n")
         cleanup_mod.run(fx, env_path=env_path, out=lambda *_: None)
         runs = [c[1] for c in fx.calls if c[0] == "run"]
-        for argv in (DAEMON_BOOTOUT, UNINSTALL_FORMULA, UNINSTALL_CASK):
+        for argv in (DAEMON_BOOTOUT, UNINSTALL_FORMULA, UNINSTALL_CASK,
+                     ("pkill", "-f", "ollama serve")):
             self.assertNotIn(argv, runs)
         # .env untouched on a no-op
         self.assertEqual(env_path.read_text(), "API_KEY=keep\n")

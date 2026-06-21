@@ -77,6 +77,14 @@ def run(effects, *, env_path, out=print) -> Remnants:
         effects.run(["sudo", "rm", "-f", DAEMON_PLIST])
         out(f"removed daemon {DAEMON_LABEL}")
 
+    # bootout unloads the job, but a detached or user-scoped `ollama serve`
+    # survives it and keeps :11434 held (found on real hardware — FakeEffects
+    # can't model a live process). Reap any survivor, user- and root-owned.
+    if r.daemon or r.formula:
+        effects.run(["pkill", "-f", "ollama serve"])
+        effects.run(["sudo", "pkill", "-f", "ollama serve"])
+        out("reaped any surviving ollama serve process")
+
     if r.formula:
         effects.run(["brew", "uninstall", FORMULA])
         out(f"uninstalled formula {FORMULA}")
@@ -98,16 +106,20 @@ def run(effects, *, env_path, out=print) -> Remnants:
     return r
 
 
-def _carry_forward_identity(env_path) -> None:
+def _carry_forward_identity(env_path, example_path=None) -> None:
     """Rewrite `.env` to the slim schema, preserving Server Identity.
 
     `OLLAMA_API_KEY` -> `API_KEY` (value preserved; an existing `API_KEY` wins
     if there's no Ollama key); `SERVER_HOSTNAME` and `IOGPU_WIRED_LIMIT_MB`
-    (the GPU cap) kept; Ollama-only keys dropped. Caddy's CA is on disk, not
-    here, so it is untouched.
+    (the GPU cap) kept; Ollama-only keys dropped. Schema keys absent from the
+    old env (e.g. `MLX_HOST`) fall back to the example's defaults rather than
+    landing empty. Caddy's CA is on disk, not here, so it is untouched.
     """
+    if example_path is None:
+        example_path = os.path.join(os.path.dirname(os.path.abspath(env_path)), ".env.example")
+    defaults = env_mod.load_env(example_path) if os.path.exists(example_path) else {}
     old = env_mod.load_env(env_path)
-    values = {k: old[k] for k in env_mod.SCHEMA if k in old}
+    values = {k: (old.get(k) or defaults.get(k, "")) for k in env_mod.SCHEMA}
     if not old.get("API_KEY") and old.get("OLLAMA_API_KEY"):
         values["API_KEY"] = old["OLLAMA_API_KEY"]
     env_mod.write_env(env_path, values)
