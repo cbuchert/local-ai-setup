@@ -1,18 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Caddy LaunchDaemon. Rendered by scripts/20-render-config.sh and installed by
-  scripts/50-caddy.sh to /Library/LaunchDaemons/.
+  Caddy LaunchDaemon. Rendered + installed by `llmctl caddy install`
+  (llmctl/caddy.py) to /Library/LaunchDaemons/.
 
   Why a custom LaunchDaemon (not `brew services`): brew services creates a
   LaunchAgent, which requires a GUI login session. We want HTTPS up before
   anyone logs in. (Brief Architecture section.)
 
-  OLLAMA_API_KEY is set here — the Caddyfile reads it as {env.OLLAMA_API_KEY}
-  at runtime. The token is therefore present in /Library/LaunchDaemons/ as a
-  root-owned 644 file; acceptable for a single-operator headless box.
+  The bearer token is not set here — it is rendered straight into the
+  Caddyfile, so this plist carries no secret.
 
   XDG_DATA_HOME pins Caddy's data dir (where the internal CA + key live) to
-  a predictable path that 50-caddy.sh can read for the CA export step.
+  a predictable path that the CA-export step reads.
 -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -35,7 +34,6 @@
     <key>HOME</key>            <string>/var/root</string>
     <key>XDG_DATA_HOME</key>   <string>/var/lib/caddy</string>
     <key>XDG_CONFIG_HOME</key> <string>/var/lib/caddy/config</string>
-    <key>OLLAMA_API_KEY</key>  <string>${OLLAMA_API_KEY}</string>
   </dict>
   <key>StandardOutPath</key>  <string>/var/log/caddy.log</string>
   <key>StandardErrorPath</key><string>/var/log/caddy.err</string>

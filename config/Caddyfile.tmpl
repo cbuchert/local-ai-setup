@@ -1,21 +1,19 @@
-# Caddyfile template — rendered by scripts/20-render-config.sh.
+# Caddyfile template — rendered by `llmctl caddy install` (llmctl/caddy.py).
 #
-# ${SERVER_HOSTNAME} is substituted from .env. OLLAMA_API_KEY is NOT
-# substituted here — Caddy reads it at runtime via {env.OLLAMA_API_KEY},
-# set in Caddy's LaunchDaemon EnvironmentVariables. Keeps the token out of
-# the on-disk config file.
+# The hostname, the loopback Runner upstream, and the bearer token are
+# substituted from .env. The token is rendered straight in; the resulting
+# /opt/homebrew/etc/Caddyfile is a root-owned 644 file — acceptable for a
+# single-operator headless box.
 #
 # Streaming-aware reverse proxy: flush_interval -1 + compression off +
 # long response_header_timeout are mandatory for token streaming to work.
-# (Research doc §3 "Caddyfile — streaming-aware reverse proxy".)
 
 ${SERVER_HOSTNAME} {
     tls internal
 
-    @authorized header Authorization "Bearer {env.OLLAMA_API_KEY}"
+    @authorized header Authorization "Bearer ${API_KEY}"
     handle @authorized {
-        reverse_proxy 127.0.0.1:11434 {
-            header_up Host localhost:11434
+        reverse_proxy ${MLX_HOST} {
             flush_interval -1
             transport http {
                 compression off
