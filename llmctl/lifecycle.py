@@ -25,14 +25,18 @@ def _iogpu_tmpl(repo_root):
 
 
 def run_phases(effects, *, env, manifest_path, repo_root, hf_home, out=print) -> None:
-    out("==> runner")
-    runner.install(effects, env=env, manifest_path=manifest_path, repo_root=repo_root)
+    # Pull models BEFORE the runner: mlx_lm.server loads its default model on
+    # start, and runner.install waits for /v1/models. On a fresh box a runner-
+    # first order makes that wait time out during the multi-GB download. Cache
+    # the model first, then the runner loads from disk and answers quickly.
+    out("==> models")
+    models.sync(effects, manifest_path=manifest_path, hf_home=hf_home)
     out("==> caddy")
     caddy.install(effects, env=env, repo_root=repo_root)
     out("==> power")
     power.apply(effects, env=env, template_path=_iogpu_tmpl(repo_root))
-    out("==> models")
-    models.sync(effects, manifest_path=manifest_path, hf_home=hf_home)
+    out("==> runner")
+    runner.install(effects, env=env, manifest_path=manifest_path, repo_root=repo_root)
 
 
 def _confirm(prompt, msg: str) -> bool:

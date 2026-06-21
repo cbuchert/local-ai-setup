@@ -116,10 +116,17 @@ class Effects:
         return [(r.repo_id, r.size_on_disk) for r in info.repos]
 
     def hf_delete(self, repo: str, hf_home: str) -> None:
-        """Delete all of `repo`'s revisions from the cache, freeing its blobs."""
+        """Delete all of `repo`'s revisions from the cache, freeing its blobs.
+
+        No-op when the cache dir doesn't exist yet (a `model rm` before any
+        pull), rather than letting scan_cache_dir raise CacheNotFound.
+        """
         from huggingface_hub import scan_cache_dir
 
-        info = scan_cache_dir(cache_dir=_hub(hf_home))
+        hub = _hub(hf_home)
+        if not Path(hub).is_dir():
+            return
+        info = scan_cache_dir(cache_dir=hub)
         hashes = [
             rev.commit_hash
             for r in info.repos
