@@ -1,8 +1,9 @@
-# mac-studio-setup
+# local-ai-setup
 
-Provisions a headless Mac Studio (Apple Silicon, 64 GB) into a dedicated
-**Ollama inference server** reachable over **HTTPS on the LAN**, from a
-single curl-piped command.
+Provisions a headless Apple Silicon Mac Studio (64 GB) into a dedicated
+**local MLX LLM inference server**, reachable over **HTTPS on the LAN**, from a
+single curl-piped command. Everything after the bootstrap is driven by one CLI:
+**`llmctl`**.
 
 ## Architecture
 
@@ -10,32 +11,24 @@ single curl-piped command.
 LAN clients ──HTTPS + Bearer token──> Caddy (:443, tls internal, LaunchDaemon)
                                           │ HTTP
                                           ▼
-                                       Ollama (127.0.0.1:11434, LaunchDaemon)
-                                          │
+                                 mlx_lm.server (127.0.0.1:8080, LaunchDaemon)
+                                          │  OpenAI-compatible /v1
                                        Metal GPU (no GUI login needed)
 ```
 
-### A note on Ollama packaging (macOS 26)
+- **Runner:** Apple MLX (`mlx_lm.server`) — the fastest path on Apple Silicon —
+  serving an **OpenAI-compatible** API. One model is resident at a time; clients
+  pick a model per request (a different model triggers a cold swap).
+- **Runs headless:** a root system LaunchDaemon keeps the Metal GPU usable with
+  no GUI login.
+- **Models:** Hugging Face MLX quants, listed in `models.toml`. Every served
+  chat/agent model clears **≥100k usable context** on 64 GB (a hard gate — see
+  `docs/adr/0003`).
 
-Ollama is installed via **two** Homebrew packages, for one annoying reason
-([ollama/ollama#16417](https://github.com/ollama/ollama/issues/16417)): on
-macOS 26 the `ollama` *formula's* bottle stopped shipping the `llama-server`
-runner, so `ollama serve` starts and answers `/api/tags` but every generation
-fails with `llama-server binary not found`. The official `.app`
-(`ollama-app` cask) bundles a working runner — but its own `ollama` binary is a
-GUI build that hangs in a headless session. So the bootstrap uses the **formula's
-`ollama serve`** (runs fine under a LaunchDaemon) and copies the **cask's
-`llama-server`** into the formula's runner dir (`scripts/10-homebrew.sh`). When
-the formula bottle ships the runner again, the cask + copy step can be dropped.
+See `CONTEXT.md` for the domain glossary and `docs/adr/` for the decisions
+behind this shape (why MLX over Ollama, why a Python CLI, the context gate).
 
-## Prerequisites
-
-- A Mac Studio (Apple Silicon) running macOS 14 or newer.
-- Remote Login (SSH) enabled — typically done once with a display attached:
-  `sudo systemsetup -setremotelogin on`.
-- Network reachable on the LAN.
-
-## Install — one command, one password prompt
+## Install — one command
 
 From the Mac Studio (over SSH is fine):
 
@@ -43,139 +36,108 @@ From the Mac Studio (over SSH is fine):
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/cbuchert/local-ai-setup/main/pre-bootstrap.sh)"
 ```
 
-You will be prompted for your account password **exactly once** — for
-Homebrew's `/opt/homebrew` creation step. Everything after is unattended:
-Homebrew + CLT, repo clone, package install, LaunchDaemons, model pulls,
-end-to-end health check.
+`pre-bootstrap.sh` installs Xcode CLT + Homebrew, clones the repo, creates the
+`.venv` and installs the runtime, then hands off to `llmctl install`. Expect
+**one sudo prompt up front**, then it runs unattended (model pulls included).
 
-### Unattended after initial setup
+Fully unattended (a scoped, self-removing `/etc/sudoers.d` entry — see the
+security tradeoff below):
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/cbuchert/local-ai-setup/main/pre-bootstrap.sh)" -- --unattended
+/bin/bash -c "$(curl -fsSL .../pre-bootstrap.sh)" -- --unattended
 ```
 
-The curl one-liner first runs `pre-bootstrap.sh`, which installs Xcode CLT
-(via `softwareupdate -i`) and Homebrew. Both use interactive `sudo`, and
-the second one reuses the credential cache from the first — so you type
-your password **once at the very start** (during CLT install).
+If the box already runs the old Ollama setup, install **detects it and offers to
+migrate** (interactive prompt, or `--migrate` when unattended) — removing Ollama
+while **preserving the CA, API key, and hostname**, so existing clients keep
+working.
 
-After those finish, `bootstrap.sh` takes over and `--unattended` installs
-a scoped `/etc/sudoers.d/mac-studio-bootstrap` entry granting `NOPASSWD`
-for *only* the specific binaries used downstream (brew, cp, chmod,
-launchctl, pmset, sysctl, …). From that point the run is fully
-uninterrupted even on a multi-hour model pull where the sudo cache would
-normally expire. The entry is removed on exit by trap.
+## The `llmctl` CLI
 
-**Net:** expect **one password prompt at the very start**, then walk away.
+```
+llmctl setup              guided config walkthrough, then provision
+llmctl install            provision (non-interactive); --migrate, --unattended
+llmctl status             daemons loaded? runner up? models + free disk
+llmctl update             upgrade brew/pip packages, re-render, reload daemons
+llmctl reset              identity-preserving teardown + install
+llmctl teardown           remove the runner stack; --models / --ca / --all
+llmctl cleanup            migrate off an old Ollama setup
 
-**Security tradeoff:** for the duration of the run, those listed binaries
-can be invoked by your user without a password. The window is short and the
-binary list is narrow, but if a run is killed (`kill -9`) before the trap
-fires, the file persists. To remove it manually: `sudo rm /etc/sudoers.d/mac-studio-bootstrap`.
+llmctl model ls           list the model set (installed / missing, sizes)
+llmctl model add <repo>   add to models.toml + pull
+llmctl model rm  <repo>   remove from models.toml + delete blobs
+llmctl model sync         reconcile the cache to models.toml exactly
+llmctl model default [<repo>]   show or set the boot/default model
+
+llmctl runner install|restart|logs    the mlx_lm.server LaunchDaemon
+llmctl caddy install                   HTTPS proxy + CA
+llmctl power apply                     server power settings + GPU memory cap
+```
+
+Each phase is independently runnable, so you can drive or debug pieces à la
+carte. `install` is the composition of them.
 
 ## Configuration
 
-The operator-facing config surface is `.env`. On first run `bootstrap.sh`
-auto-creates it from `.env.example` — every value is a working default or
-generated downstream (`OLLAMA_API_KEY` is auto-generated), so **no editing is
-required for a default install**. Edit `.env` only to override a default, then
-re-run. Templates under `config/` are rendered into `*.plist` and `Caddyfile`
-build artifacts (gitignored). **Never hand-edit the rendered files** —
-re-running `bootstrap.sh` will overwrite them.
+Two files, both at the repo root:
 
-| Var                        | Purpose                                            |
-| -------------------------- | -------------------------------------------------- |
-| `SERVER_HOSTNAME`          | Hostname Caddy serves (e.g. `studio.local`)        |
-| `OLLAMA_API_KEY`           | Bearer token; auto-generated if empty              |
-| `OLLAMA_HOST`              | Ollama bind address (keep on loopback)             |
-| `OLLAMA_MODELS`            | Model blob dir; empty = `~/.ollama/models`         |
-| `OLLAMA_KEEP_ALIVE`        | How long a model stays resident                    |
-| `OLLAMA_MAX_LOADED_MODELS` | Concurrent resident models                         |
-| `OLLAMA_NUM_PARALLEL`      | Concurrent requests per model                      |
-| `OLLAMA_FLASH_ATTENTION`   | Flash attention on (recommended)                   |
-| `OLLAMA_KV_CACHE_TYPE`     | KV cache quantization (`q8_0` halves memory)       |
-| `IOGPU_WIRED_LIMIT_MB`     | GPU wired-memory cap (default 57344 = 56 GB)       |
+- **`.env`** — runtime config (gitignored; created from `.env.example` on first
+  run, every value a working default or generated/detected):
 
-## Client-side step (the one manual step, per laptop)
+  | Var | Purpose |
+  | --- | --- |
+  | `SERVER_HOSTNAME` | Hostname Caddy serves (e.g. `studio.local`) |
+  | `API_KEY` | Bearer token; auto-generated if empty |
+  | `MLX_HOST` | Runner bind address (keep on loopback) |
+  | `HF_HOME` | Model store; empty = `~/.cache/huggingface` |
+  | `IOGPU_WIRED_LIMIT_MB` | GPU wired-memory cap; empty = auto-detect (RAM − 8 GB) |
 
-Trusting Caddy's internal root CA. The server writes the CA to two paths:
+- **`models.toml`** — the model set (the *Manifest*). One block per model: repo
+  id, an optional `default = true` marker, and its *Profile* (`mlx_lm.server`
+  launch settings — `max_tokens`, KV memory budget, sampling). `llmctl` keeps
+  the on-disk cache reconciled to exactly this file.
 
-- `~/mac-studio-setup/exported-ca/root.crt` (inside the repo)
-- `/usr/local/share/mac-studio-ca.crt` (stable system path)
+The shipped set (all gate-verified June 2026): `Qwen3-Coder-30B-A3B` (default),
+`Devstral-Small-24B`, `gpt-oss-20b` (chat), and `Qwen2.5-Coder-1.5B` (FIM
+autocomplete, gate-exempt by role).
 
-On each **client** (e.g. your laptop), fetch and trust it:
+## Connecting clients
 
-```bash
-# 1. Copy the CA from the server
-scp <studio-hostname>:/usr/local/share/mac-studio-ca.crt /tmp/mac-studio-ca.crt
+The server speaks the OpenAI-compatible API at `https://<hostname>/v1` with the
+bearer token. **See [`docs/clients.md`](docs/clients.md)** for the one-time
+CA-trust step and concrete config for Cline, Aider, and Continue.dev.
 
-# 2. Trust it system-wide (macOS client)
-sudo security add-trusted-cert -d -r trustRoot \
-  -k /Library/Keychains/System.keychain \
-  /tmp/mac-studio-ca.crt
-```
-
-After this, `curl https://studio.local/api/tags` works without `--cacert`.
-This is the **only** step outside the server-side one-liner. It can't be
-automated from the server because it runs on a different machine.
-
-Future option: switch Caddy to DNS-01 against a real domain. That
-eliminates the CA-trust step entirely. Not in scope for v1.
-
-## Using the server
-
-From any trusted client:
+Quick check from a trusted client:
 
 ```bash
-curl -H "Authorization: Bearer <OLLAMA_API_KEY>" \
-  https://studio.local/api/tags
+curl https://studio.local/v1/models -H "Authorization: Bearer $API_KEY"
 ```
-
-The `OLLAMA_API_KEY` lives in `.env` on the server and in
-`/Library/LaunchDaemons/com.caddy.service.plist` (root-owned, mode 644).
 
 ## Re-running / recovery
 
-Everything is idempotent. If a phase fails, fix the cause and re-run
-`./bootstrap.sh` — completed phases will no-op, and Ollama model pulls
-resume by blob hash. The failed phase name and full log path are printed
-on any error.
+Everything is idempotent. Re-run `llmctl install` (or any phase) after fixing a
+cause — completed work no-ops, model pulls resume by blob hash. `llmctl reset`
+rebuilds in place without breaking trusted clients; `llmctl teardown --all`
+returns the box to bare.
 
-You can also run any single phase directly to debug:
-
-```bash
-./scripts/50-caddy.sh
-```
+**Unattended security tradeoff:** `--unattended` writes a scoped, self-removing
+`/etc/sudoers.d/local-ai-bootstrap` granting `NOPASSWD` for *only* the specific
+binaries the install uses, removed by trap on exit. If a run is hard-killed
+before the trap fires, remove it manually: `sudo rm /etc/sudoers.d/local-ai-bootstrap`.
 
 ## Repo layout
 
 ```
-mac-studio-setup/
-├── pre-bootstrap.sh          curl-piped entry: installs brew, clones, hands off
-├── bootstrap.sh              single entry point: orchestrates the phases
-├── Brewfile                  ollama + ollama-app cask (runner), caddy, jq
-├── .env.example              committed; .env is gitignored
-├── models.txt                tag-per-line model manifest
-├── scripts/
-│   ├── lib.sh                shared helpers
-│   ├── 00-preflight.sh       sanity checks
-│   ├── 10-homebrew.sh        brew install + brew bundle
-│   ├── 20-render-config.sh   .env + *.tmpl → plists + Caddyfile
-│   ├── 30-launchdaemons.sh   install Ollama + iogpu LaunchDaemons
-│   ├── 40-power-settings.sh  pmset / systemsetup for server behavior
-│   ├── 50-caddy.sh           install Caddy LaunchDaemon, export root CA
-│   ├── 60-pull-models.sh     idempotent ollama pull for every tag in models.txt
-│   └── 99-healthcheck.sh     HTTPS round trip + GPU active check
-└── config/
-    ├── com.ollama.service.plist.tmpl
-    ├── com.local.iogpu-wired-limit.plist.tmpl
-    ├── com.caddy.service.plist.tmpl
-    └── Caddyfile.tmpl
+local-ai-setup/
+├── pre-bootstrap.sh      curl-piped entry: CLT + brew + venv + handoff
+├── bin/llmctl            shell shim → .venv python -m llmctl
+├── llmctl/               the CLI package (effects seam, phases, lifecycle)
+├── models.toml           the model set (Manifest + Profiles)
+├── .env.example          committed; .env is gitignored
+├── config/*.tmpl         plist + Caddyfile templates (rendered to gitignored artifacts)
+├── requirements.txt      mlx-lm, huggingface_hub, tomlkit
+├── CONTEXT.md            domain glossary
+└── docs/
+    ├── adr/              architecture decisions
+    └── clients.md        client setup guide
 ```
-
-## Design references
-
-- `CLAUDE_CODE_BUILD_BRIEF.md` — the spec this implements.
-- `mac-studio-ollama-provisioning-research.md` — the *why* behind each
-  decision (LaunchDaemon vs LaunchAgent, env-vars-in-plist gotcha,
-  streaming proxy flags, GPU-without-login finding).
