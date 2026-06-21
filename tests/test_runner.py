@@ -86,6 +86,15 @@ class RenderPlistTest(unittest.TestCase):
         self.assertIn("<string>0.7</string>", text)
         self.assertIn("/models/hf", text)  # HF_HOME env var
 
+    def test_empty_hf_home_renders_concrete_path_not_empty(self):
+        # empty HF_HOME (the .env default) must NOT reach the daemon as "" —
+        # huggingface_hub in mlx_lm.server resolves "" to /hub and every
+        # /v1/models + completion 500s with CacheNotFound.
+        env = {**ENV, "HF_HOME": "", "HOME": "/Users/op"}
+        text = runner.render_plist(env=env, manifest_path=MANIFEST, repo_root=REPO_ROOT,
+                                   read_text=_reader())
+        self.assertIn("/Users/op/.cache/huggingface", text)
+
     def test_label_is_com_mlx_service(self):
         text = runner.render_plist(env=ENV, manifest_path=MANIFEST, repo_root=REPO_ROOT,
                                    read_text=_reader())

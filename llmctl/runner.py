@@ -48,6 +48,17 @@ def _home(env: dict) -> str:
     return env.get("HOME") or str(Path.home())
 
 
+def _hf_home(env: dict) -> str:
+    """Resolve HF_HOME to a concrete path for the daemon env.
+
+    An EMPTY HF_HOME in the plist is worse than omitting it: huggingface_hub
+    inside mlx_lm.server resolves "" to `/hub` (not the ~/.cache default) and
+    every /v1/models + completion 500s with CacheNotFound. The CLI's own _hub()
+    tolerates empty via `or`, but the daemon can't — so render a real path.
+    """
+    return env.get("HF_HOME") or f"{_home(env)}/.cache/huggingface"
+
+
 def _log_paths(env: dict) -> tuple[str, str]:
     logs = f"{_home(env)}/Library/Logs"
     return f"{logs}/{LOG_NAME}", f"{logs}/{ERR_NAME}"
@@ -91,7 +102,7 @@ def render_plist(*, env: dict, manifest_path, repo_root, read_text=None) -> str:
         "PROMPT_CACHE_BYTES": profile.get("prompt_cache_bytes", 0),
         "TEMP": profile.get("temp", 0.0),
         "HOME": _home(env),
-        "HF_HOME": env.get("HF_HOME", ""),
+        "HF_HOME": _hf_home(env),
         "RUNNER_LOG": log_out,
         "RUNNER_ERR": log_err,
     }
