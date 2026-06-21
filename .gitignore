@@ -18,3 +18,8 @@ logs/
 
 # macOS noise
 .DS_Store
+
+# Python venv (created by pre-bootstrap)
+.venv/
+__pycache__/
+*.pyc
