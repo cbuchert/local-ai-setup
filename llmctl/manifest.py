@@ -41,8 +41,8 @@ def _profile(block) -> dict:
     return p
 
 
-def load_models(path) -> list[Model]:
-    doc = _doc(path)
+def parse_models(text: str) -> list[Model]:
+    doc = tomlkit.parse(text)
     return [
         Model(
             name=str(b["name"]),
@@ -53,6 +53,10 @@ def load_models(path) -> list[Model]:
         )
         for b in doc.get("models", [])
     ]
+
+
+def load_models(path) -> list[Model]:
+    return parse_models(Path(path).read_text())
 
 
 def default_model(models: list[Model]) -> Model | None:
