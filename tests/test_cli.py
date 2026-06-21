@@ -25,10 +25,15 @@ class CliDispatchTest(unittest.TestCase):
         self.assertIn("not yet implemented", out)
         self.assertIn("#", out)  # references the tracking issue
 
-    def test_model_subcommand_dispatches(self):
+    def test_model_ls_dispatches_to_real_handler(self):
+        # wired (not a stub); lists the Manifest ∪ cache against real Effects
         code, out = run(["model", "ls"])
+        self.assertEqual(code, 0)
+
+    def test_model_add_requires_a_repo_arg(self):
+        # verifies the model subparser is wired with the required positional
+        code, _ = run(["model", "add"])
         self.assertNotEqual(code, 0)
-        self.assertIn("not yet implemented", out)
 
     def test_unknown_command_errors(self):
         code, _ = run(["frobnicate"])

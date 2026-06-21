@@ -102,10 +102,17 @@ class Effects:
         snapshot_download(repo_id=repo, cache_dir=_hub(hf_home))
 
     def hf_cache(self, hf_home: str) -> list[tuple[str, int]]:
-        """List `(repo, size_bytes)` for every repo present in the cache."""
+        """List `(repo, size_bytes)` for every repo present in the cache.
+
+        Empty on a fresh box where the cache dir doesn't exist yet, rather
+        than letting scan_cache_dir raise CacheNotFound.
+        """
         from huggingface_hub import scan_cache_dir
 
-        info = scan_cache_dir(cache_dir=_hub(hf_home))
+        hub = _hub(hf_home)
+        if not Path(hub).is_dir():
+            return []
+        info = scan_cache_dir(cache_dir=hub)
         return [(r.repo_id, r.size_on_disk) for r in info.repos]
 
     def hf_delete(self, repo: str, hf_home: str) -> None:
