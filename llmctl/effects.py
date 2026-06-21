@@ -67,3 +67,10 @@ class Effects:
 
     def free_disk_bytes(self, path: str = "/") -> int:
         return shutil.disk_usage(path).free
+
+    def read_text(self, path) -> str | None:
+        """File contents, or None if absent/unreadable (e.g. permission)."""
+        try:
+            return Path(path).read_text()
+        except (FileNotFoundError, PermissionError, IsADirectoryError, OSError):
+            return None
