@@ -18,6 +18,8 @@ class FakeEffects:
         installed_models=None,
         free_disk_bytes=0,
         read_texts=None,
+        hf_cache=None,
+        hf_repo_size=None,
     ):
         # run_results: {tuple(argv): RunResult or [RunResult, ...]}. A list is
         # consumed one per call (last value repeats) so a probe can change
@@ -28,6 +30,10 @@ class FakeEffects:
         self._installed_models = list(installed_models or [])
         self._free_disk_bytes = free_disk_bytes
         self._read_texts = dict(read_texts or {})
+        # hf_cache: [(repo, size_bytes), ...] — the HF hub cache contents.
+        # hf_repo_size: {repo: size_bytes} — pre-pull size lookup for the guard.
+        self._hf_cache = list(hf_cache or [])
+        self._hf_repo_size = dict(hf_repo_size or {})
         self.calls = []
 
     def run(self, argv, *, input=None):
@@ -52,3 +58,21 @@ class FakeEffects:
     def free_disk_bytes(self, path="/"):
         self.calls.append(("free_disk", path))
         return self._free_disk_bytes
+
+    def hf_download(self, repo, hf_home):
+        self.calls.append(("hf_download", repo, hf_home))
+        # Record the pull as a now-present cache entry.
+        if repo not in [r for r, _ in self._hf_cache]:
+            self._hf_cache.append((repo, self._hf_repo_size.get(repo, 0)))
+
+    def hf_cache(self, hf_home):
+        self.calls.append(("hf_cache", hf_home))
+        return list(self._hf_cache)
+
+    def hf_delete(self, repo, hf_home):
+        self.calls.append(("hf_delete", repo, hf_home))
+        self._hf_cache = [(r, s) for r, s in self._hf_cache if r != repo]
+
+    def hf_repo_size(self, repo):
+        self.calls.append(("hf_repo_size", repo))
+        return self._hf_repo_size.get(repo, 0)

@@ -74,3 +74,43 @@ class Effects:
             return Path(path).read_text()
         except (FileNotFoundError, PermissionError, IsADirectoryError, OSError):
             return None
+
+    # --- Hugging Face hub cache (model management, #4) --------------------
+
+    def hf_download(self, repo: str, hf_home: str) -> None:
+        """Pull `repo` into the hub cache under hf_home (snapshot_download)."""
+        from huggingface_hub import snapshot_download
+
+        snapshot_download(repo_id=repo, cache_dir=_hub(hf_home))
+
+    def hf_cache(self, hf_home: str) -> list[tuple[str, int]]:
+        """List `(repo, size_bytes)` for every repo present in the cache."""
+        from huggingface_hub import scan_cache_dir
+
+        info = scan_cache_dir(cache_dir=_hub(hf_home))
+        return [(r.repo_id, r.size_on_disk) for r in info.repos]
+
+    def hf_delete(self, repo: str, hf_home: str) -> None:
+        """Delete all of `repo`'s revisions from the cache, freeing its blobs."""
+        from huggingface_hub import scan_cache_dir
+
+        info = scan_cache_dir(cache_dir=_hub(hf_home))
+        hashes = [
+            rev.commit_hash
+            for r in info.repos
+            if r.repo_id == repo
+            for rev in r.revisions
+        ]
+        if hashes:
+            info.delete_revisions(*hashes).execute()
+
+    def hf_repo_size(self, repo: str) -> int:
+        """Total download size of `repo` in bytes, before pulling it."""
+        from huggingface_hub import HfApi
+
+        info = HfApi().repo_info(repo, files_metadata=True)
+        return sum(f.size or 0 for f in info.siblings)
+
+
+def _hub(hf_home: str) -> str:
+    return str(Path(hf_home or os.path.expanduser("~/.cache/huggingface")) / "hub")

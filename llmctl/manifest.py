@@ -72,3 +72,39 @@ def set_default(path, name: str) -> None:
         if str(b["name"]) == name:
             b["default"] = True
     Path(path).write_text(tomlkit.dumps(doc))
+
+
+def add_model(path, repo: str, *, name: str | None = None, role: str = "") -> None:
+    """Append a `[[models]]` block for `repo`, preserving comments/layout.
+
+    No-op if the repo is already listed. `name` defaults to the repo's last
+    path segment. Profile fields are omitted — the model is untuned until an
+    operator edits its block (see ADR 0003).
+    """
+    doc = _doc(path)
+    blocks = doc.get("models", [])
+    if any(str(b["repo"]) == repo for b in blocks):
+        return
+    table = tomlkit.table()
+    table["name"] = name or repo.rsplit("/", 1)[-1]
+    table["repo"] = repo
+    if role:
+        table["role"] = role
+    doc.setdefault("models", tomlkit.aot()).append(table)
+    Path(path).write_text(tomlkit.dumps(doc))
+
+
+def remove_model(path, repo: str) -> None:
+    """Drop the `[[models]]` block whose repo matches, preserving the rest.
+
+    No-op if the repo is absent.
+    """
+    doc = _doc(path)
+    blocks = doc.get("models")
+    if blocks is None:
+        return
+    for i, b in enumerate(blocks):
+        if str(b["repo"]) == repo:
+            del blocks[i]
+            Path(path).write_text(tomlkit.dumps(doc))
+            return
