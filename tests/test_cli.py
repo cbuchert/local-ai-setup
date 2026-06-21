@@ -2,7 +2,7 @@ import contextlib
 import io
 import unittest
 
-from llmctl.__main__ import main
+from llmctl.__main__ import build_parser, cmd_teardown, main
 
 
 def run(argv):
@@ -19,11 +19,14 @@ class CliDispatchTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("runner daemon", out)
 
-    def test_unbuilt_verb_is_a_stub_pointing_at_its_issue(self):
-        code, out = run(["update"])
-        self.assertNotEqual(code, 0)
-        self.assertIn("not yet implemented", out)
-        self.assertIn("#", out)  # references the tracking issue
+    def test_lifecycle_verbs_and_flags_parse(self):
+        # parse-only (don't execute mutating verbs): the flags are wired
+        p = build_parser()
+        self.assertTrue(p.parse_args(["install", "--migrate", "--unattended"]).migrate)
+        t = p.parse_args(["teardown", "--all"])
+        self.assertTrue(t.all)
+        self.assertIs(t.func, cmd_teardown)
+        self.assertTrue(p.parse_args(["reset", "--migrate"]).migrate)
 
     def test_model_ls_dispatches_to_real_handler(self):
         # wired (not a stub); lists the Manifest ∪ cache against real Effects
