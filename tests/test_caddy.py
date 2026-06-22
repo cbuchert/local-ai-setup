@@ -53,6 +53,17 @@ class InstallTest(unittest.TestCase):
         teed = [c[1] for c in fx.calls if c[0] == "run" and c[1][:2] == ("sudo", "tee")]
         self.assertIn(("sudo", "tee", CADDYFILE_DST), [t[:3] for t in teed])
 
+    def test_kicks_caddy_when_only_caddyfile_changed(self):
+        # daemon loaded + plist unchanged -> install_daemon is a no-op, so a
+        # Caddyfile-only change (new upstream) must kickstart Caddy to reload.
+        fx = self._fx(
+            extra={PRINT: _ok()},
+            read_texts={PLIST_DST: caddy.PLIST_TMPL.read_text()},
+        )
+        caddy.install(fx, env=ENV, repo_root=REPO)
+        runs = [c[1] for c in fx.calls if c[0] == "run"]
+        self.assertIn(("sudo", "launchctl", "kickstart", "-k", f"system/{LABEL}"), runs)
+
     def test_installs_caddy_daemon(self):
         fx = self._fx()
         caddy.install(fx, env=ENV, repo_root=REPO)

@@ -49,13 +49,19 @@ def render_caddyfile(env: dict) -> str:
 
 def install(effects, *, env: dict, repo_root) -> None:
     """Render + place the Caddyfile, install the daemon, export the CA."""
-    _install_root_file(effects, CADDYFILE_DST, render_caddyfile(env))
+    caddyfile_changed = _install_root_file(effects, CADDYFILE_DST, render_caddyfile(env))
 
-    sys_mod.install_daemon(
+    daemon_changed = sys_mod.install_daemon(
         effects,
         label=CADDY_LABEL,
         plist_text=PLIST_TMPL.read_text(),
     )
+
+    # install_daemon reloads only when the *plist* changes. A Caddyfile-only
+    # change (e.g. a new upstream) leaves Caddy serving the old config from
+    # memory — kick the daemon to reload it.
+    if caddyfile_changed and not daemon_changed:
+        effects.run(["sudo", "launchctl", "kickstart", "-k", f"system/{CADDY_LABEL}"])
 
     _export_ca(effects, repo_root=repo_root)
 
