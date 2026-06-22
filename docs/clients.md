@@ -38,15 +38,14 @@ client). The keychain step covers `curl`, browsers, and Electron apps that honor
 system certs; `NODE_EXTRA_CA_CERTS` covers the rest. Symptom when it's missing:
 `unable to verify the first certificate`.
 
-**Tool-calling is not parsed server-side.** `mlx_lm.server` forwards a request's
-`tools` into the chat template (so the model *emits* a call), but it does not
-parse the model's output back into OpenAI structured `tool_calls` — the call
-comes back as raw text in `content` with `finish_reason: stop` (e.g. Qwen emits
-`<function=…><parameter=…>…`). So agents that require **native** structured tool
-calls (OpenCode) won't get an executable call; agents that parse tool calls from
-text *themselves* (Continue.dev converts tools to XML for exactly this) can still
-drive agent mode. Plain chat/completions are unaffected. Verified against
-mlx_lm 0.31.3 — revisit if a release adds a tool-call parser.
+**Tool-calling works, via the shim.** `mlx_lm.server` itself returns tool calls
+as raw `<function=…><parameter=…>` text with `finish_reason: stop`, not OpenAI
+structured `tool_calls` — so native-tool agents (OpenCode) couldn't use them. A
+small reverse-proxy shim (Caddy → shim → mlx_lm.server, `com.mlx.toolshim`)
+parses that text into proper `tool_calls`, so agents get executable calls. Tools
+*execute* on the client; the model only requests them. One caveat: tool-bearing
+turns don't stream token-by-token (the shim buffers a tool turn to parse it);
+plain chat streams normally and passes straight through.
 
 **Cap context on the client, not the server.** `mlx_lm.server` has no
 context-length knob, so a request's context is bounded only by the model's
