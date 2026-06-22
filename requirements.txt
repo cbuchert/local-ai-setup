@@ -1,0 +1,4 @@
+# Production runtime deps (installed into .venv by pre-bootstrap / #8).
+mlx-lm
+huggingface_hub
+tomlkit

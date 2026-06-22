@@ -1,5 +1,0 @@
-# Ollama model manifest — one tag per line. Lines starting with `#` and blank
-# lines are ignored. scripts/60-pull-models.sh pulls each tag idempotently
-# (skips if already in `ollama list`).
-qwen3-coder:30b
-qwen2.5-coder:1.5b

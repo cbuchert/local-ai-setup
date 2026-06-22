@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Template for the MLX Runner LaunchDaemon. Rendered by llmctl.runner.install
+  from .env + the Default Model's Profile (models.toml), then installed to
+  /Library/LaunchDaemons/ via sys.install_daemon.
+
+  Dollar-brace placeholders are substituted (XML-escaped) by sys.render_template.
+
+  Runs mlx_lm.server from the repo's .venv as ROOT (no UserName key) — the only
+  configuration the provisioning research proves keeps the Metal GPU usable
+  headless (see docs/adr/0001). Bound to loopback; Caddy fronts it with TLS+auth.
+
+  EnvironmentVariables MUST carry HOME and HF_HOME here: a LaunchDaemon does not
+  inherit a login shell's environment, so the model cache (HF_HOME) and HOME are
+  set in the plist, not via ~/.zshrc or `launchctl setenv`.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>            <string>com.mlx.service</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${MLX_SERVER_BIN}</string>
+    <string>--model</string>          <string>${MODEL_REPO}</string>
+    <string>--host</string>           <string>${MLX_BIND_HOST}</string>
+    <string>--port</string>           <string>${MLX_BIND_PORT}</string>
+    <string>--max-tokens</string>     <string>${MAX_TOKENS}</string>
+    <string>--prompt-cache-bytes</string> <string>${PROMPT_CACHE_BYTES}</string>
+    <string>--temp</string>           <string>${TEMP}</string>
+  </array>
+  <key>RunAtLoad</key>        <true/>
+  <key>KeepAlive</key>        <true/>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>     <string>${HOME}</string>
+    <key>HF_HOME</key>  <string>${HF_HOME}</string>
+  </dict>
+  <key>StandardOutPath</key>  <string>${RUNNER_LOG}</string>
+  <key>StandardErrorPath</key><string>${RUNNER_ERR}</string>
+</dict>
+</plist>

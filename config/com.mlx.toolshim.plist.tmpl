@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Template for the tool-call shim LaunchDaemon. Rendered by
+  llmctl.toolshim.install from .env, installed via sys.install_daemon.
+
+  Runs `python -m llmctl.toolshim` from the repo's .venv. The shim is a pure
+  reverse proxy (Caddy -> shim -> mlx_lm.server) that parses Qwen tool-call text
+  into OpenAI tool_calls; it touches no model/Metal, so it carries no HF_HOME —
+  only PYTHONPATH so `-m llmctl.toolshim` resolves the package.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>            <string>com.mlx.toolshim</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${VENV_PYTHON}</string>
+    <string>-m</string>               <string>llmctl.toolshim</string>
+    <string>--host</string>           <string>${SHIM_BIND_HOST}</string>
+    <string>--port</string>           <string>${SHIM_BIND_PORT}</string>
+    <string>--upstream</string>       <string>${MLX_HOST}</string>
+  </array>
+  <key>RunAtLoad</key>        <true/>
+  <key>KeepAlive</key>        <true/>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PYTHONPATH</key>  <string>${REPO_ROOT}</string>
+    <key>PYTHONUNBUFFERED</key> <string>1</string>
+  </dict>
+  <key>StandardOutPath</key>  <string>${SHIM_LOG}</string>
+  <key>StandardErrorPath</key><string>${SHIM_ERR}</string>
+</dict>
+</plist>

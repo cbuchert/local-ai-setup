@@ -1,0 +1,54 @@
+# models.toml — the model set (desired state).
+#
+# `llmctl` reconciles the on-disk cache to exactly the `repo`s listed here:
+# listed models are pulled, anything else is removed. Each block carries the
+# model's repo id, an optional `default` marker (exactly one), and its Profile
+# (the mlx_lm.server launch settings applied while it is the resident default).
+#
+# Inclusion gate: a chat/agent model ships only if it serves >=100k usable
+# context on this 64 GB box (native context length AND weights + fp16 KV for
+# 100k tokens fit under IOGPU_WIRED_LIMIT_MB). The `autocomplete` role is
+# exempt — it is structurally short-context. See docs/adr/0003.
+#
+# Verified June 2026 against HF model cards + KV-memory arithmetic. Dropped by
+# the gate: GLM-4.5-Air-3bit (46.8 GB → ~48k KV-bound), Qwen2.5-Coder-32B and
+# -1.5B for serving (natively 32k; 128k needs YaRN the server can't enable).
+
+# Agentic coding daily-driver — the default. ~17.2 GB, native 262k.
+# Smallest model class Cline testing confirms actually works as an agent.
+[[models]]
+name               = "qwen3-coder-30b"
+repo               = "mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit"
+default            = true
+role               = "agent"
+max_tokens         = 8192
+temp               = 0.7
+prompt_cache_bytes = 32_000_000_000   # ~32 GB
+
+# Agentic coding alternative — SWE-bench-tuned, long ctx. ~13 GB, native 131k.
+[[models]]
+name               = "devstral-small-24b"
+repo               = "lmstudio-community/Devstral-Small-2507-MLX-4bit"
+role               = "agent"
+max_tokens         = 8192
+temp               = 0.15
+prompt_cache_bytes = 24_000_000_000   # ~24 GB
+
+# Fast chat / drafting — NOT a reliable standalone agent. ~12 GB, native 131k.
+[[models]]
+name               = "gpt-oss-20b"
+repo               = "mlx-community/gpt-oss-20b-MXFP4-Q8"
+role               = "chat"
+max_tokens         = 4096
+temp               = 1.0
+prompt_cache_bytes = 8_000_000_000    # ~8 GB
+
+# Editor autocomplete / FIM — gate-exempt by role. ~0.9 GB, native 32k.
+# Base (FIM-trained) variant, not -Instruct.
+[[models]]
+name               = "qwen2.5-coder-1.5b-fim"
+repo               = "mlx-community/Qwen2.5-Coder-1.5B-4bit"
+role               = "autocomplete"
+max_tokens         = 512
+temp               = 0.1
+prompt_cache_bytes = 1_000_000_000    # ~1 GB
