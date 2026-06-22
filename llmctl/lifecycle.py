@@ -9,9 +9,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from llmctl import caddy, cleanup, models, power, runner, shell
+from llmctl import caddy, cleanup, models, power, runner, shell, toolshim
 
 RUNNER_LABEL = "com.mlx.service"
+SHIM_LABEL = "com.mlx.toolshim"
 CADDY_LABEL = "com.caddy.service"
 IOGPU_LABEL = "com.local.iogpu-wired-limit"
 
@@ -37,6 +38,8 @@ def run_phases(effects, *, env, manifest_path, repo_root, hf_home, out=print) ->
     power.apply(effects, env=env, template_path=_iogpu_tmpl(repo_root))
     out("==> runner")
     runner.install(effects, env=env, manifest_path=manifest_path, repo_root=repo_root)
+    out("==> tool-call shim")
+    toolshim.install(effects, env=env, repo_root=repo_root)
 
 
 def _confirm(prompt, msg: str) -> bool:
@@ -95,9 +98,11 @@ def teardown(
     all: bool = False,
     out=print,
 ) -> None:
-    # Default: the runner stack only — preserves Models, CA, Server Identity,
-    # and the caddy + iogpu daemons so a `reset` is client-transparent.
+    # Default: the runner stack only (runner + shim) — preserves Models, CA,
+    # Server Identity, and the caddy + iogpu daemons so a `reset` is
+    # client-transparent.
     _bootout_remove(effects, RUNNER_LABEL, out)
+    _bootout_remove(effects, SHIM_LABEL, out)
     effects.run(["rm", "-f", str(Path(repo_root) / "config" / f"{RUNNER_LABEL}.plist")])
 
     if all:

@@ -80,5 +80,20 @@ class HelpersTest(unittest.TestCase):
         self.assertTrue(sse.rstrip().endswith("[DONE]"))
 
 
+class RenderPlistTest(unittest.TestCase):
+    def test_renders_bind_upstream_pythonpath_no_leftovers(self):
+        from pathlib import Path
+
+        from llmctl.toolshim import render_plist
+        repo_root = Path(__file__).resolve().parent.parent
+        env = {"SHIM_HOST": "127.0.0.1:8081", "MLX_HOST": "127.0.0.1:8080", "HOME": "/Users/op"}
+        text = render_plist(env=env, repo_root=repo_root)
+        self.assertIn("com.mlx.toolshim", text)
+        self.assertIn("8081", text)              # shim bind port
+        self.assertIn("127.0.0.1:8080", text)    # upstream
+        self.assertIn(str(repo_root), text)      # PYTHONPATH + venv python
+        self.assertNotIn("${", text)             # fully substituted
+
+
 if __name__ == "__main__":
     unittest.main()

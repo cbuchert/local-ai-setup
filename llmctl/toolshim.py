@@ -19,6 +19,12 @@ import json
 import re
 import urllib.error
 import urllib.request
+from pathlib import Path
+
+from llmctl import sys as sys_mod
+
+LABEL = "com.mlx.toolshim"
+TEMPLATE_REL = "config/com.mlx.toolshim.plist.tmpl"
 
 _FUNC = re.compile(r"<function=([^>\s]+)>(.*?)</function>", re.DOTALL)
 _PARAM = re.compile(r"<parameter=([^>\s]+)>(.*?)</parameter>", re.DOTALL)
@@ -80,6 +86,41 @@ def to_stream_chunks(resp: dict) -> str:
         "choices": [{"index": 0, "delta": delta, "finish_reason": choice.get("finish_reason")}],
     }
     return f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n\n"
+
+
+# --- Phase: render + install the shim daemon ------------------------------
+
+def _split_host(hostport: str, default_port: str) -> tuple[str, str]:
+    host, _, port = hostport.rpartition(":")
+    return (host, port) if host else (hostport, default_port)
+
+
+def render_plist(*, env: dict, repo_root, read_text=None) -> str:
+    if read_text is None:
+        read_text = lambda p: Path(p).read_text()
+    host, port = _split_host(env.get("SHIM_HOST", "127.0.0.1:8081"), "8081")
+    home = env.get("HOME") or str(Path.home())
+    logs = f"{home}/Library/Logs"
+    values = {
+        "VENV_PYTHON": f"{repo_root}/.venv/bin/python",
+        "REPO_ROOT": str(repo_root),
+        "SHIM_BIND_HOST": host,
+        "SHIM_BIND_PORT": port,
+        "MLX_HOST": env.get("MLX_HOST", "127.0.0.1:8080"),
+        "SHIM_LOG": f"{logs}/toolshim.log",
+        "SHIM_ERR": f"{logs}/toolshim.err",
+    }
+    template = read_text(Path(repo_root) / TEMPLATE_REL)
+    return sys_mod.render_template(template, values, escape_xml=True)
+
+
+def install(effects, *, env: dict, repo_root) -> None:
+    plist = render_plist(env=env, repo_root=repo_root, read_text=effects.read_text)
+    sys_mod.install_daemon(effects, label=LABEL, plist_text=plist)
+
+
+def restart(effects) -> None:
+    effects.run(["sudo", "launchctl", "kickstart", "-k", f"system/{LABEL}"])
 
 
 # --- Reverse proxy: Caddy -> shim -> mlx_lm.server ------------------------

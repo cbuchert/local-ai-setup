@@ -20,6 +20,7 @@ from llmctl import runner as runner_mod
 from llmctl import setup as setup_mod
 from llmctl import shell
 from llmctl import status as status_mod
+from llmctl import toolshim as toolshim_mod
 from llmctl.effects import Effects
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -163,6 +164,14 @@ def cmd_caddy(args, effects) -> int:
     return 0
 
 
+def cmd_shim(args, effects) -> int:
+    if args.shim_command == "restart":
+        toolshim_mod.restart(effects)
+    else:
+        toolshim_mod.install(effects, env=_env(), repo_root=ROOT)
+    return 0
+
+
 def cmd_power(args, effects) -> int:
     power_mod.apply(effects, env=_env(), template_path=IOGPU_TMPL)
     return 0
@@ -232,6 +241,12 @@ def build_parser() -> argparse.ArgumentParser:
     cp = sub.add_parser("caddy", help="HTTPS proxy + CA")
     cp.add_subparsers(dest="caddy_command", required=True).add_parser("install")
     cp.set_defaults(func=cmd_caddy)
+
+    shp = sub.add_parser("shim", help="tool-call shim (Qwen → OpenAI tool_calls)")
+    shsub = shp.add_subparsers(dest="shim_command", required=True)
+    for s in ("install", "restart"):
+        shsub.add_parser(s)
+    shp.set_defaults(func=cmd_shim)
 
     pp = sub.add_parser("power", help="server power + GPU memory cap")
     pp.add_subparsers(dest="power_command", required=True).add_parser("apply")

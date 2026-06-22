@@ -10,7 +10,8 @@ from __future__ import annotations
 import secrets
 from pathlib import Path
 
-SCHEMA = ["SERVER_HOSTNAME", "API_KEY", "MLX_HOST", "HF_HOME", "IOGPU_WIRED_LIMIT_MB"]
+SCHEMA = ["SERVER_HOSTNAME", "API_KEY", "MLX_HOST", "SHIM_HOST", "HF_HOME",
+          "IOGPU_WIRED_LIMIT_MB"]
 
 GPU_HEADROOM_MB = 8192  # leave ~8 GB for macOS
 

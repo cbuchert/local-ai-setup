@@ -8,6 +8,7 @@ from tests.fakes import FakeEffects
 ENV = {
     "SERVER_HOSTNAME": "studio.local",
     "MLX_HOST": "127.0.0.1:8080",
+    "SHIM_HOST": "127.0.0.1:8081",
     "API_KEY": "deadbeef",
 }
 
@@ -26,7 +27,7 @@ class RenderCaddyfileTest(unittest.TestCase):
     def test_includes_hostname_upstream_and_bearer(self):
         out = caddy.render_caddyfile(ENV)
         self.assertIn("studio.local {", out)
-        self.assertIn("reverse_proxy 127.0.0.1:8080", out)
+        self.assertIn("reverse_proxy 127.0.0.1:8081", out)  # upstream is the shim
         self.assertIn('Authorization "Bearer deadbeef"', out)
         self.assertIn("tls internal", out)
         # no leftover placeholders

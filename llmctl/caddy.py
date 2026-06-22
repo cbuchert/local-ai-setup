@@ -35,12 +35,15 @@ CADDY_CA = "/var/lib/caddy/caddy/pki/authorities/local/root.crt"
 # Stable path a client scp's the CA from (see docs/clients.md).
 STABLE_CA = "/usr/local/share/mac-studio-ca.crt"
 
-# Caddyfile placeholders rendered from .env.
-_CADDYFILE_KEYS = ("SERVER_HOSTNAME", "MLX_HOST", "API_KEY")
+# Caddyfile placeholders rendered from .env. The upstream is the tool-call
+# shim (SHIM_HOST), which fronts mlx_lm.server.
+_CADDYFILE_KEYS = ("SERVER_HOSTNAME", "API_KEY")
 
 
 def render_caddyfile(env: dict) -> str:
     values = {k: env[k] for k in _CADDYFILE_KEYS}
+    # SHIM_HOST has a canonical default — tolerate a .env that predates it.
+    values["SHIM_HOST"] = env.get("SHIM_HOST") or "127.0.0.1:8081"
     return sys_mod.render_template(CADDYFILE_TMPL.read_text(), values)
 
 

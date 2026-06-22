@@ -13,7 +13,7 @@ ${SERVER_HOSTNAME} {
 
     @authorized header Authorization "Bearer ${API_KEY}"
     handle @authorized {
-        reverse_proxy ${MLX_HOST} {
+        reverse_proxy ${SHIM_HOST} {
             flush_interval -1
             transport http {
                 compression off
